@@ -73,7 +73,7 @@ function renderIntro() {
 
       <section class="flow hero-enter" style="--enter-delay:.5s">
         <div><em>01</em><strong>بياناتك وإجاباتك</strong><span>أربع خطوات قصيرة عن خبرتك وطريقة تفكيرك.</span></div>
-        <div><em>02</em><strong>تسجيل فيديو وصوت</strong><span>بيشتغل أثناء التقديم بعد موافقتك وإذن المتصفح.</span></div>
+        <div><em>02</em><strong>تسجيل الشاشة</strong><span>بيشتغل أثناء التقديم بعد موافقتك وإذن المتصفح. من غير كاميرا ولا ميكروفون.</span></div>
         <div><em>03</em><strong>مراجعة الإدارة</strong><span>بنراجع الطلب وبنرد عليك لو اتقبلت.</span></div>
       </section>
 
@@ -128,68 +128,39 @@ function renderConsent() {
   area.classList.add('enter');
   area.innerHTML = `
     <h2>قبل ما نبدأ</h2>
-    <p class="sub">لإكمال التقديم لازم تسمح بالكاميرا والميكروفون. التسجيل بيبدأ بعد موافقتك فقط، وبيفضل شغال لحد ما تبعت التقديم.</p>
+    <p class="sub">لإكمال التقديم لازم تسمح بتسجيل الشاشة. مفيش كاميرا ولا ميكروفون بيتفتحوا. التسجيل بيبدأ بعد موافقتك فقط، وبيفضل شغال لحد ما تبعت التقديم.</p>
     <div class="notice">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      <span>التسجيل والبيانات بتتخزن في مساحة خاصة، وبيشوفها فريق مراجعة التقديمات فقط. لو رفضت الصلاحيات مش هتقدر تكمل التقديم.</span>
+      <span>التسجيل والبيانات بتتخزن في مساحة خاصة، وبيشوفها فريق مراجعة التقديمات فقط. لو رفضت تسجيل الشاشة مش هتقدر تكمل التقديم.</span>
     </div>
-    <label class="checkline"><input type="checkbox" id="consent"> قرأت ووافقت على تسجيل الفيديو والصوت واستخدامهما لمراجعة التقديم.</label>
-    <button class="primary" id="allow-camera">موافقة وفتح الكاميرا</button>
-    <p id="camera-error" class="error" role="alert"></p>`;
+    <label class="checkline"><input type="checkbox" id="consent"> قرأت ووافقت على تسجيل شاشتي واستخدامه لمراجعة التقديم.</label>
+    <button class="primary" id="allow-screen">موافقة وبدء تسجيل الشاشة</button>
+    <p id="screen-error" class="error" role="alert"></p>`;
   area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  document.querySelector('#allow-camera').addEventListener('click', async () => {
-    const err = document.querySelector('#camera-error');
+  document.querySelector('#allow-screen').addEventListener('click', async () => {
+    const err = document.querySelector('#screen-error');
     err.textContent = '';
     if (!document.querySelector('#consent').checked) { err.textContent = 'لازم توافق على التسجيل الأول.'; return; }
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      err.textContent = 'المتصفح ده مش بيدعم التسجيل. جرّب Chrome أو Safari حديث.'; return;
+    if (!navigator.mediaDevices?.getDisplayMedia || !window.MediaRecorder) {
+      err.textContent = 'المتصفح ده مش بيدعم تسجيل الشاشة. افتح الموقع من كمبيوتر بمتصفح Chrome أو Edge أو Firefox حديث.'; return;
     }
-    const allow = document.querySelector('#allow-camera');
+    const allow = document.querySelector('#allow-screen');
     allow.disabled = true;
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-        audio: { echoCancellation: true, noiseSuppression: true },
+      // Screen only: no camera, no microphone, no system audio.
+      state.stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 10, max: 15 }, width: { max: 1280 }, height: { max: 720 } },
+        audio: false,
       });
-      allow.textContent = 'جاري تجهيز الكاميرا...';
-      const brightness = await measureCamera(state.stream);
-      if (brightness < 6) {
-        state.stream.getTracks().forEach(t => t.stop());
-        state.stream = null;
-        err.textContent = 'الكاميرا شغالة بس الصورة سودا. تأكد إن الكاميرا مش مغطية، وإن مفيش برنامج تاني بيستخدمها، وإن الإضاءة كفاية، وبعدين حاول تاني.';
-        allow.disabled = false; allow.textContent = 'موافقة وفتح الكاميرا';
-        return;
-      }
-      state.stream.getVideoTracks()[0]?.addEventListener('ended', () => toast('الكاميرا اتقفلت. شغّلها تاني وإلا التسجيل مش هيكمل.'));
+      state.stream.getVideoTracks()[0]?.addEventListener('ended', () => toast('مشاركة الشاشة اتوقفت. شغّلها تاني وإلا التسجيل مش هيكمل.'));
       startRecording();
       renderForm();
     } catch {
-      err.textContent = 'مش قادرين نوصل للكاميرا والميكروفون. اسمح بالصلاحيات من إعدادات المتصفح وحاول تاني.';
-      allow.disabled = false; allow.textContent = 'موافقة وفتح الكاميرا';
+      err.textContent = 'لازم تسمح بمشاركة الشاشة عشان تكمل. اختار الشاشة واضغط مشاركة وحاول تاني.';
+      allow.disabled = false; allow.textContent = 'موافقة وبدء تسجيل الشاشة';
     }
   });
-}
-
-/* Samples real frames from the camera so we never record (and upload) a black video. */
-async function measureCamera(stream) {
-  const v = document.createElement('video');
-  v.muted = true; v.playsInline = true; v.srcObject = stream;
-  await v.play().catch(() => {});
-  const c = document.createElement('canvas'); c.width = 32; c.height = 24;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  let best = 0;
-  for (let i = 0; i < 10 && best < 6; i++) {
-    await new Promise(r => setTimeout(r, 300));
-    if (!v.videoWidth) continue;
-    ctx.drawImage(v, 0, 0, 32, 24);
-    const d = ctx.getImageData(0, 0, 32, 24).data;
-    let sum = 0;
-    for (let j = 0; j < d.length; j += 4) sum += 0.2126 * d[j] + 0.7152 * d[j + 1] + 0.0722 * d[j + 2];
-    best = Math.max(best, sum / (d.length / 4));
-  }
-  v.srcObject = null;
-  return best;
 }
 
 /* ------------------------------------------------------------------ result (status) */
@@ -264,11 +235,11 @@ async function showResult(id, { save = false } = {}) {
 
 /* ------------------------------------------------------------------ recording */
 function startRecording() {
-  const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+  const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   const mime = candidates.find(t => MediaRecorder.isTypeSupported(t));
   state.chunks = []; state.bytes = 0;
   // Low bitrate keeps a long answer session under the storage file-size limit.
-  state.recorder = new MediaRecorder(state.stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 300_000, audioBitsPerSecond: 48_000 });
+  state.recorder = new MediaRecorder(state.stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 500_000 });
   state.recorder.ondataavailable = e => {
     if (!e.data?.size) return;
     state.chunks.push(e.data);
@@ -296,10 +267,9 @@ function mountPip() {
   document.querySelector('#pip')?.remove();
   const pip = document.createElement('div');
   pip.className = 'pip'; pip.id = 'pip';
-  pip.innerHTML = `<video autoplay muted playsinline></video><div class="rec"><i></i><span id="rec-time">00:00</span> REC</div>`;
+  pip.innerHTML = `<div class="rec"><i></i><span id="rec-time">00:00</span> REC</div>`;
   document.body.append(pip);
   document.body.classList.add('has-pip');
-  pip.querySelector('video').srcObject = state.stream;
   const t0 = Date.now();
   clearInterval(state.timerId);
   state.timerId = setInterval(() => {
@@ -394,7 +364,7 @@ async function submitApplication(event) {
     if (state.recorder && state.recorder.state !== 'inactive') {
       await new Promise(resolve => { state.recorder.addEventListener('stop', resolve, { once: true }); state.recorder.stop(); });
     }
-    if (!state.blob || state.blob.size === 0) throw new Error('التسجيل فاضي. اتأكد إن الكاميرا شغالة وحاول تاني.');
+    if (!state.blob || state.blob.size === 0) throw new Error('التسجيل فاضي. اتأكد إن مشاركة الشاشة شغالة وحاول تاني.');
     const finishedAt = new Date().toISOString();
 
     const form = new FormData(formEl);
