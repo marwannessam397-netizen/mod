@@ -132,6 +132,8 @@ function cardHtml(a) {
   const open = ui.open.has(a.id);
   const initials = (a.full_name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const away = (a.visibility_events || []).filter(e => e.event === 'hidden').length;
+  const deviceEv = (a.visibility_events || []).find(e => e.event === 'device');
+  const deviceLabel = deviceEv ? (deviceEv.mobile ? 'موبايل' : 'كمبيوتر') : '—';
   const qa = STEPS.slice(1).flatMap(s => s.fields).map(f => a.answers?.[f.key]
     ? `<div><dt>${esc(f.label)}</dt><dd>${esc(a.answers[f.key])}</dd></div>` : '').join('');
   const decide = (s, cls, label) => `<button class="${cls}" data-status="${s}" ${a.status === s ? 'aria-current="true"' : ''}>${label}</button>`;
@@ -148,10 +150,11 @@ function cardHtml(a) {
           <span>التواجد: ${esc(a.availability_hours || '—')}</span>
           <span>${new Date(a.created_at).toLocaleString('ar-EG')}</span>
           <span>خرج من الصفحة ${away} مرة</span>
+          <span>الجهاز: ${deviceLabel}</span>
           <span><a href="https://kick.com/${encodeURIComponent(a.kick_username)}" target="_blank" rel="noopener">قناة Kick</a></span>
           ${a.age_proof_url ? `<span><a href="${esc(a.age_proof_url)}" target="_blank" rel="noopener">صورة إثبات السن</a></span>` : ''}
         </div>
-        ${a.video_url ? `<video class="preview" controls playsinline preload="metadata" src="${esc(a.video_url)}#t=0.1"></video>` : '<p class="hint">الفيديو مش متاح.</p>'}
+        ${a.video_url ? `<video class="preview" controls playsinline preload="metadata" src="${esc(a.video_url)}#t=0.1"></video>` : (a.video_path === 'none' ? '<p class="hint">قدّم من جهاز مش بيدعم تسجيل الشاشة (موبايل) — من غير تسجيل.</p>' : '<p class="hint">الفيديو مش متاح.</p>')}
         <dl class="qa">${qa}</dl>
         <div class="decision">
           ${decide('accepted', 'accept', 'قبول')}${decide('reviewing', 'review', 'تحت المراجعة')}${decide('rejected', 'reject', 'رفض')}${decide('pending', '', 'رجوع لجديد')}

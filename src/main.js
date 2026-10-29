@@ -122,10 +122,22 @@ function runLoader(onReveal) {
 }
 
 /* ------------------------------------------------------------------ consent */
+const canRecordScreen = () => !!(navigator.mediaDevices?.getDisplayMedia && window.MediaRecorder);
+
 function renderConsent() {
   const area = document.querySelector('#application-area');
   area.classList.remove('hidden');
   area.classList.add('enter');
+  // Phones (and some browsers) can't record the screen from a web page: let them apply without a recording.
+  if (!canRecordScreen()) {
+    area.innerHTML = `
+      <h2>قبل ما نبدأ</h2>
+      <p class="sub">جهازك مش بيدعم تسجيل الشاشة من المتصفح، فتقدر تكمل التقديم عادي من غير تسجيل.</p>
+      <button class="primary" id="start-no-rec">ابدأ التقديم</button>`;
+    area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelector('#start-no-rec').addEventListener('click', renderForm);
+    return;
+  }
   area.innerHTML = `
     <h2>قبل ما نبدأ</h2>
     <p class="sub">لإكمال التقديم لازم تسمح بتسجيل الشاشة. مفيش كاميرا ولا ميكروفون بيتفتحوا. التسجيل بيبدأ بعد موافقتك فقط، وبيفضل شغال لحد ما تبعت التقديم.</p>
@@ -255,11 +267,18 @@ function startRecording() {
 
   if (!state.listenersOn) {
     state.listenersOn = true;
-    document.addEventListener('visibilitychange', () => {
-      if (state.recorder?.state === 'recording') state.visibility.push({ event: document.visibilityState, at: new Date().toISOString() });
-    });
     window.addEventListener('beforeunload', warnBeforeLeave);
   }
+}
+/* Logs every time the applicant leaves/returns to the page (works on phones too, with or without recording). */
+function trackLeaving() {
+  if (state.trackingOn) return;
+  state.trackingOn = true;
+  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  state.visibility.push({ event: 'device', mobile, recorded: !!state.stream, at: new Date().toISOString() });
+  document.addEventListener('visibilitychange', () => {
+    if (state.trackingOn) state.visibility.push({ event: document.visibilityState, at: new Date().toISOString() });
+  });
 }
 const warnBeforeLeave = e => { if (state.recorder?.state === 'recording') { e.preventDefault(); e.returnValue = ''; } };
 
@@ -291,7 +310,8 @@ function fieldHtml(f) {
 }
 
 function renderForm() {
-  mountPip();
+  trackLeaving();
+  if (state.stream) mountPip();
   const area = document.querySelector('#application-area');
   const steps = STEPS.map((s, i) => `
     <div class="step ${i ? 'hidden' : ''}" data-step="${i}">
@@ -361,10 +381,13 @@ async function submitApplication(event) {
   button.disabled = true; status.textContent = '';
   try {
     const db = requireSupabase();
-    if (state.recorder && state.recorder.state !== 'inactive') {
-      await new Promise(resolve => { state.recorder.addEventListener('stop', resolve, { once: true }); state.recorder.stop(); });
+    const recorded = !!state.stream; // false on phones: no screen recording available
+    if (recorded) {
+      if (state.recorder && state.recorder.state !== 'inactive') {
+        await new Promise(resolve => { state.recorder.addEventListener('stop', resolve, { once: true }); state.recorder.stop(); });
+      }
+      if (!state.blob || state.blob.size === 0) throw new Error('التسجيل فاضي. اتأكد إن مشاركة الشاشة شغالة وحاول تاني.');
     }
-    if (!state.blob || state.blob.size === 0) throw new Error('التسجيل فاضي. اتأكد إن مشاركة الشاشة شغالة وحاول تاني.');
     const finishedAt = new Date().toISOString();
 
     const form = new FormData(formEl);
@@ -372,8 +395,9 @@ async function submitApplication(event) {
     for (const s of STEPS) for (const f of s.fields) answers[f.key] = String(form.get(f.key) ?? '').trim();
 
     const ext = state.mime.includes('mp4') ? 'mp4' : 'webm';
-    const videoPath = `applications/${state.appId}/recording.${ext}`;
-    if (!state.uploaded.video) {
+    // 'none' = applied from a device without screen recording (admin panel shows it as "no recording")
+    const videoPath = recorded ? `applications/${state.appId}/recording.${ext}` : 'none';
+    if (recorded && !state.uploaded.video) {
       overlay('جاري رفع الفيديو... متقفلش الصفحة');
       const { error } = await db.storage.from('application-private').upload(videoPath, state.blob, { contentType: state.mime, upsert: false });
       if (error) throw error;
@@ -401,12 +425,13 @@ async function submitApplication(event) {
       answers,
       video_path: videoPath,
       age_proof_path: ageProofPath,
-      recording_started_at: state.startedAt,
-      recording_finished_at: finishedAt,
+      recording_started_at: recorded ? state.startedAt : null,
+      recording_finished_at: recorded ? finishedAt : null,
       visibility_events: state.visibility,
     });
     if (insertError) throw insertError;
 
+    state.trackingOn = false;
     state.stream?.getTracks().forEach(t => t.stop());
     clearInterval(state.timerId);
     document.querySelector('#pip')?.remove();
