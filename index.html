@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080b09" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="قدّم للانضمام إلى فريق مودريتورز KICK MODS." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Unbounded:wght@700;800&display=swap" rel="stylesheet" />
+  <title>KICK MODS | تقديم المودات</title>
+</head>
+<body>
+  <noscript><p style="color:#eef3ef;font-family:sans-serif;padding:24px;text-align:center">لازم تفعّل JavaScript عشان الموقع يشتغل.</p></noscript>
+  <script>
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', function () {
+        document.body.innerHTML = '<div style="color:#eef3ef;font-family:sans-serif;padding:32px;max-width:560px;margin:auto;line-height:2;text-align:center"><h2 style="color:#53f28c">افتح الموقع من رابط Vercel أو من npm run dev</h2><p>الملف ده مش بيشتغل بالدبل كليك من الجهاز لأن المتصفح بيمنع السكريبتات من file://</p></div>';
+      });
+    }
+    window.addEventListener('error', function (e) {
+      var box = document.querySelector('#app, #admin-app');
+      if (box && !box.children.length) box.innerHTML = '<div style="color:#eef3ef;font-family:sans-serif;padding:32px;text-align:center;line-height:2">حصلت مشكلة في تحميل الصفحة.<br><small style="color:#94a39a">' + String(e.message).replace(/</g, '&lt;') + '</small></div>';
+    });
+  </script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
